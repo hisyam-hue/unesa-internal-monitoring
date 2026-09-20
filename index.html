@@ -3745,11 +3745,17 @@
             </div>
         </div>
 
-        <!-- VIEW 3: TREN TEMA -->
+        <!-- VIEW 3: TREN TEMA (LENGKAP ANALISIS KATA KUNCI) -->
         <div id="view-tren" class="hidden space-y-6">
-            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-center py-12">
-                <h3 class="text-xl font-bold text-slate-800 mb-2">Analisis Tren & Kata Kunci Berita</h3>
-                <p class="text-sm text-slate-500">Fitur NLP & Ekstraksi Topik Otomatis Berjalan Setiap Siklus Scraping.</p>
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-slate-900">Peringkat Kata Kunci & Topik Berita Hangat</h3>
+                    <p class="text-xs text-slate-400">Kata kunci terbanyak yang paling sering muncul pada judul berita resmi UNESA</p>
+                </div>
+
+                <div class="h-80">
+                    <canvas id="keywordChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -3757,7 +3763,6 @@
 
     <!-- JS LOGIC & CHARTS -->
     <script>
-        // Tab Navigation Switcher
         function switchTab(tabName) {
             document.getElementById('view-ikhtisar').classList.add('hidden');
             document.getElementById('view-rekap').classList.add('hidden');
@@ -3824,6 +3829,31 @@
                     }
                 },
                 cutout: '65%'
+            }
+        });
+
+        // Render Horizontal Keyword Chart (Tren Tema)
+        const ctxKw = document.getElementById('keywordChart').getContext('2d');
+        new Chart(ctxKw, {
+            type: 'bar',
+            data: {
+                labels: ["Mahasiswa", "Perkuat", "Program", "Kerja", "Jadi", "Penguatan", "Kolaborasi", "Melalui", "Riset", "Inovasi"],
+                datasets: [{
+                    label: 'Frekuensi Kemunculan',
+                    data: [124, 69, 45, 43, 43, 43, 42, 40, 39, 36],
+                    backgroundColor: '#2e2a85',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                    y: { grid: { display: false } }
+                }
             }
         });
     </script>
