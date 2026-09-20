@@ -13,7 +13,6 @@ def generate_dashboard():
         print(f"File {csv_file} tidak ditemukan!")
         return
 
-    # 1. Olah Data CSV
     df = pd.read_csv(csv_file)
     df.fillna('', inplace=True)
 
@@ -24,7 +23,6 @@ def generate_dashboard():
     col_kategori = 'kategori' if 'kategori' in df.columns else ('Kategori' if 'Kategori' in df.columns else None)
     col_url = 'url' if 'url' in df.columns else ('link' if 'link' in df.columns else None)
 
-    # Tanggal & Volume Bulanan
     df['parsed_date'] = pd.to_datetime(df[col_tanggal], errors='coerce')
     current_month_name = datetime.now().strftime('%B %Y')
     
@@ -42,7 +40,6 @@ def generate_dashboard():
         else:
             monthly_counts[idx % 9] += 1
 
-    # Processing Kategori
     if col_kategori and col_kategori in df.columns:
         kat_series = df[col_kategori].value_counts()
         top_kategori = kat_series.index[0] if len(kat_series) > 0 else "Akademik & Umum"
@@ -60,8 +57,11 @@ def generate_dashboard():
             "Riset & Inovasi": int(total_berita * 0.08)
         }
 
-    # Ekstraksi Kata Kunci untuk Tab Tren Tema
-    stopwords = {'dan', 'yang', 'di', 'ke', 'dari', 'ini', 'itu', 'dengan', 'untuk', 'pada', 'adalah', 'sebagai', 'dalam', 'oleh', 'unesa', 'universitas', 'negeri', 'surabaya', 'akan', 'atau', 'pada', 'bisa', 'juga'}
+    stopwords = {
+        'dan', 'yang', 'di', 'ke', 'dari', 'ini', 'itu', 'dengan', 'untuk', 'pada', 
+        'adalah', 'sebagai', 'dalam', 'oleh', 'unesa', 'universitas', 'negeri', 
+        'surabaya', 'akan', 'atau', 'pada', 'bisa', 'juga', 'melalui', 'serta', 'tahun'
+    }
     all_words = []
     for title in df[col_judul]:
         words = re.findall(r'\b[a-zA-Z]{4,}\b', str(title).lower())
@@ -73,7 +73,7 @@ def generate_dashboard():
 
     rata_rata = round(total_berita / 9.0, 1) if total_berita > 0 else 0.0
 
-    # JSON Serializer untuk JS Chart
+    # JSON Serializer
     chart_months_json = json.dumps(months_labels)
     chart_monthly_data_json = json.dumps(monthly_counts)
     chart_kat_labels_json = json.dumps(list(kategori_counts.keys()))
@@ -81,7 +81,6 @@ def generate_dashboard():
     chart_kw_labels_json = json.dumps(kw_labels)
     chart_kw_counts_json = json.dumps(kw_counts)
 
-    # 2. Template HTML Struktur Presisi
     html_content = f"""<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -233,10 +232,10 @@ def generate_dashboard():
         <div id="view-rekap" class="hidden space-y-6">
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <h3 class="text-lg font-bold text-slate-900 mb-4">Seluruh Data Rekap Berita ({total_berita})</h3>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto max-h-[600px]">
                     <table class="w-full text-left text-xs">
-                        <thead>
-                            <tr class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
+                        <thead class="sticky top-0 bg-slate-50">
+                            <tr class="text-slate-400 font-bold uppercase border-b border-slate-100">
                                 <th class="py-3 px-4">No</th>
                                 <th class="py-3 px-4">Tanggal</th>
                                 <th class="py-3 px-4">Judul Berita</th>
@@ -264,7 +263,7 @@ def generate_dashboard():
             </div>
         </div>
 
-        <!-- VIEW 3: TREN TEMA (LENGKAP ANALISIS KATA KUNCI) -->
+        <!-- VIEW 3: TREN TEMA (GRAFIK ANALISIS KATA KUNCI) -->
         <div id="view-tren" class="hidden space-y-6">
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <div class="mb-6">
