@@ -2,7 +2,9 @@ import pandas as pd
 import json
 import shutil
 import os
+import re
 from datetime import datetime
+from collections import Counter
 
 def generate_dashboard():
     csv_file = 'rekap_berita_unesa.csv'
@@ -58,6 +60,17 @@ def generate_dashboard():
             "Riset & Inovasi": int(total_berita * 0.08)
         }
 
+    # Ekstraksi Kata Kunci untuk Tab Tren Tema
+    stopwords = {'dan', 'yang', 'di', 'ke', 'dari', 'ini', 'itu', 'dengan', 'untuk', 'pada', 'adalah', 'sebagai', 'dalam', 'oleh', 'unesa', 'universitas', 'negeri', 'surabaya', 'akan', 'atau', 'pada', 'bisa', 'juga'}
+    all_words = []
+    for title in df[col_judul]:
+        words = re.findall(r'\b[a-zA-Z]{4,}\b', str(title).lower())
+        all_words.extend([w for w in words if w not in stopwords])
+    
+    top_keywords = Counter(all_words).most_common(10)
+    kw_labels = [k[0].capitalize() for k in top_keywords]
+    kw_counts = [k[1] for k in top_keywords]
+
     rata_rata = round(total_berita / 9.0, 1) if total_berita > 0 else 0.0
 
     # JSON Serializer untuk JS Chart
@@ -65,6 +78,8 @@ def generate_dashboard():
     chart_monthly_data_json = json.dumps(monthly_counts)
     chart_kat_labels_json = json.dumps(list(kategori_counts.keys()))
     chart_kat_data_json = json.dumps(list(kategori_counts.values()))
+    chart_kw_labels_json = json.dumps(kw_labels)
+    chart_kw_counts_json = json.dumps(kw_counts)
 
     # 2. Template HTML Struktur Presisi
     html_content = f"""<!DOCTYPE html>
@@ -186,7 +201,6 @@ def generate_dashboard():
                         <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
 """
 
-    # Baris Tabel Berita
     for idx, row in df.head(15).iterrows():
         tgl = str(row.get(col_tanggal, '-'))
         jdl = str(row.get(col_judul, '-'))
@@ -243,18 +257,24 @@ def generate_dashboard():
                                 <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded text-[10px]">{kat}</span></td>
                             </tr>"""
 
-    html_content += """
+    html_content += f"""
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <!-- VIEW 3: TREN TEMA -->
+        <!-- VIEW 3: TREN TEMA (LENGKAP ANALISIS KATA KUNCI) -->
         <div id="view-tren" class="hidden space-y-6">
-            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm text-center py-12">
-                <h3 class="text-xl font-bold text-slate-800 mb-2">Analisis Tren & Kata Kunci Berita</h3>
-                <p class="text-sm text-slate-500">Fitur NLP & Ekstraksi Topik Otomatis Berjalan Setiap Siklus Scraping.</p>
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-slate-900">Peringkat Kata Kunci & Topik Berita Hangat</h3>
+                    <p class="text-xs text-slate-400">Kata kunci terbanyak yang paling sering muncul pada judul berita resmi UNESA</p>
+                </div>
+
+                <div class="h-80">
+                    <canvas id="keywordChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -262,8 +282,7 @@ def generate_dashboard():
 
     <!-- JS LOGIC & CHARTS -->
     <script>
-        // Tab Navigation Switcher
-        function switchTab(tabName) {
+        function switchTab(tabName) {{
             document.getElementById('view-ikhtisar').classList.add('hidden');
             document.getElementById('view-rekap').classList.add('hidden');
             document.getElementById('view-tren').classList.add('hidden');
@@ -274,63 +293,88 @@ def generate_dashboard():
 
             document.getElementById('view-' + tabName).classList.remove('hidden');
             document.getElementById('tab-' + tabName).classList.add('active');
-        }
+        }}
 
         // Render Bar Chart
         const ctxBar = document.getElementById('barChart').getContext('2d');
-        new Chart(ctxBar, {
+        new Chart(ctxBar, {{
             type: 'bar',
-            data: {
-                labels: """ + chart_months_json + """,
-                datasets: [{
-                    data: """ + chart_monthly_data_json + """,
+            data: {{
+                labels: {chart_months_json},
+                datasets: [{{
+                    data: {chart_monthly_data_json},
                     backgroundColor: [
                         '#6366f1', '#06b6d4', '#10b981', '#f59e0b', 
                         '#ef4444', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6'
                     ],
                     borderRadius: 6,
                     barThickness: 28
-                }]
-            },
-            options: {
+                }}]
+            }},
+            options: {{
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
-                    x: { grid: { display: false }, ticks: { font: { size: 10 } } }
-                }
-            }
-        });
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    y: {{ beginAtZero: true, grid: {{ color: '#f1f5f9' }}, ticks: {{ font: {{ size: 10 }} }} }},
+                    x: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }}
+                }}
+            }}
+        }});
 
         // Render Donut Chart
         const ctxDonut = document.getElementById('donutChart').getContext('2d');
-        new Chart(ctxDonut, {
+        new Chart(ctxDonut, {{
             type: 'doughnut',
-            data: {
-                labels: """ + chart_kat_labels_json + """,
-                datasets: [{
-                    data: """ + chart_kat_data_json + """,
+            data: {{
+                labels: {chart_kat_labels_json},
+                datasets: [{{
+                    data: {chart_kat_data_json},
                     backgroundColor: [
                         '#4338ca', '#10b981', '#f59e0b', '#ec4899',
                         '#8b5cf6', '#06b6d4', '#64748b'
                     ],
                     borderWidth: 3,
                     borderColor: '#ffffff'
-                }]
-            },
-            options: {
+                }}]
+            }},
+            options: {{
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
+                plugins: {{
+                    legend: {{
                         position: 'bottom',
-                        labels: { boxWidth: 10, font: { size: 10, weight: '600' }, padding: 12 }
-                    }
-                },
+                        labels: {{ boxWidth: 10, font: {{ size: 10, weight: '600' }}, padding: 12 }}
+                    }}
+                }},
                 cutout: '65%'
-            }
-        });
+            }}
+        }});
+
+        // Render Horizontal Keyword Chart (Tren Tema)
+        const ctxKw = document.getElementById('keywordChart').getContext('2d');
+        new Chart(ctxKw, {{
+            type: 'bar',
+            data: {{
+                labels: {chart_kw_labels_json},
+                datasets: [{{
+                    label: 'Frekuensi Kemunculan',
+                    data: {chart_kw_counts_json},
+                    backgroundColor: '#2e2a85',
+                    borderRadius: 6
+                }}]
+            }},
+            options: {{
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    x: {{ beginAtZero: true, grid: {{ color: '#f1f5f9' }} }},
+                    y: {{ grid: {{ display: false }} }}
+                }}
+            }}
+        }});
     </script>
 </body>
 </html>
@@ -340,7 +384,7 @@ def generate_dashboard():
         f.write(html_content)
         
     shutil.copy('dashboard_internal.html', 'index.html')
-    print("Dashboard internal berhasil dibuat dengan struktur navigasi lengkap!")
+    print("Dashboard internal berhasil diperbarui dengan grafik Tren Tema!")
 
 if __name__ == '__main__':
     generate_dashboard()
