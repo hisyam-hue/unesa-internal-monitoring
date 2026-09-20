@@ -307,10 +307,10 @@
         <div id="view-rekap" class="hidden space-y-6">
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <h3 class="text-lg font-bold text-slate-900 mb-4">Seluruh Data Rekap Berita (570)</h3>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto max-h-[600px]">
                     <table class="w-full text-left text-xs">
-                        <thead>
-                            <tr class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
+                        <thead class="sticky top-0 bg-slate-50">
+                            <tr class="text-slate-400 font-bold uppercase border-b border-slate-100">
                                 <th class="py-3 px-4">No</th>
                                 <th class="py-3 px-4">Tanggal</th>
                                 <th class="py-3 px-4">Judul Berita</th>
@@ -3745,7 +3745,7 @@
             </div>
         </div>
 
-        <!-- VIEW 3: TREN TEMA (LENGKAP ANALISIS KATA KUNCI) -->
+        <!-- VIEW 3: TREN TEMA (GRAFIK ANALISIS KATA KUNCI) -->
         <div id="view-tren" class="hidden space-y-6">
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <div class="mb-6">
@@ -3837,10 +3837,10 @@
         new Chart(ctxKw, {
             type: 'bar',
             data: {
-                labels: ["Mahasiswa", "Perkuat", "Program", "Kerja", "Jadi", "Penguatan", "Kolaborasi", "Melalui", "Riset", "Inovasi"],
+                labels: ["Mahasiswa", "Perkuat", "Program", "Kerja", "Jadi", "Penguatan", "Kolaborasi", "Riset", "Inovasi", "Internasional"],
                 datasets: [{
                     label: 'Frekuensi Kemunculan',
-                    data: [124, 69, 45, 43, 43, 43, 42, 40, 39, 36],
+                    data: [124, 69, 45, 43, 43, 43, 42, 39, 36, 36],
                     backgroundColor: '#2e2a85',
                     borderRadius: 6
                 }]
