@@ -1,153 +1,94 @@
+import asyncio
+from playwright.async_api import async_playwright
 import pandas as pd
 import re
-import time
-from bs4 import BeautifulSoup
-from playwright.sync_api import sync_playwright
+import os
 
-CSV_FILE = "rekap_berita_unesa.csv"
+async def scrape_unesa_internal():
+    print("Memulai scraping Berita Internal UNESA...")
+    
+    url = "https://www.unesa.ac.id/kategori/berita"
+    
+    async with async_playwright() as p:
+        # Launch browser headless mode untuk GitHub Actions & Local
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        page = await context.new_page()
+        
+        try:
+            await page.goto(url, wait_until="networkidle", timeout=60000)
+        except Exception as e:
+            print(f"Error loading main page: {e}")
+            await browser.close()
+            return
 
-MONTH_MAP = {
-    'Januari': 1, 'Jan': 1, 'Februari': 2, 'Feb': 2, 'Maret': 3, 'Mar': 3,
-    'April': 4, 'Apr': 4, 'Mei': 5, 'Juni': 6, 'Jun': 6, 'Juli': 7, 'Jul': 7,
-    'Agustus': 8, 'Agu': 8, 'Ags': 8, 'September': 9, 'Sep': 9,
-    'Oktober': 10, 'Okt': 10, 'November': 11, 'Nov': 11, 'Desember': 12, 'Des': 12
-}
+        articles_data = []
+        
+        # Selektor artikel berita UNESA
+        cards = await page.query_selector_all("article, .post, .card, .blog-post")
+        if not cards:
+            cards = await page.query_selector_all("a[href*='/berita/']")
 
-EXCLUDE_WORDS = [
-    'selayang pandang', 'pimpinan universitas', 'struktur organisasi', 
-    'senat akademik', 'biro, lembaga', 'home', 'tentang unesa', 'pendidikan', 
-    'pengabdian', 'research', 'layanan', 'kembali ke beranda'
-]
+        print(f"Ditemukan {len(cards)} elemen artikel di halaman utama.")
 
-def clean_text(text):
-    if not text:
-        return ""
-    return re.sub(r'\s+', ' ', text).strip()
-
-def categorize_topic(judul):
-    j_lower = judul.lower()
-    if any(k in j_lower for k in ['juara', 'medali', 'prestasi', 'sabet', 'lomba', 'kompetisi', 'penghargaan', 'peringkat']):
-        return 'Prestasi & Penghargaan'
-    elif any(k in j_lower for k in ['kerjasama', 'kolaborasi', 'mou', 'mou', 'delegasi', 'kunjungan', 'benchmarking', 'kemitraan']):
-        return 'Kerjasama & Internasional'
-    elif any(k in j_lower for k in ['riset', 'penelitian', 'jurnal', 'inovasi', 'teknologi', 'karya', 'paten', 'guru besar', 'profesor']):
-        return 'Riset & Inovasi'
-    elif any(k in j_lower for k in ['kkn', 'pengabdian', 'masyarakat', 'umkm', 'desa', 'pelatihan', 'pendampingan', 'bantu']):
-        return 'Pengabdian Masyarakat'
-    elif any(k in j_lower for k in ['mahasiswa', 'maba', 'ukm', 'ormawa', 'kampus', 'studi', 'wisuda', 'yudisium', 'beasiswa']):
-        return 'Kemahasiswaan'
-    else:
-        return 'Akademik & Umum'
-
-def parse_date(date_str):
-    date_str = clean_text(date_str)
-    match = re.search(r'(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', date_str)
-    if match:
-        day = int(match.group(1))
-        month_name = match.group(2)
-        year = int(match.group(3))
-        month = MONTH_MAP.get(month_name, None)
-        return day, month, year, f"{day} {month_name} {year}"
-    return None, None, None, None
-
-def run_local_scraper():
-    all_articles = []
-    seen_links = set()
-    stop_scraping = False
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        context = browser.new_context(viewport={'width': 1280, 'height': 900})
-        page = context.new_page()
-
-        p_num = 1
-        while not stop_scraping and p_num <= 100:
-            target_url = f"https://unesa.ac.id/arsip/unesa/p/{p_num}/" if p_num > 1 else "https://unesa.ac.id/arsip/unesa/"
-            print(f"\n--- Memproses Halaman {p_num} ({target_url}) ---")
-            
+        for card in cards[:30]: # Ambil batch berita terbaru
             try:
-                response = page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
-                if response and response.status == 404:
-                    print("Halaman 404. Selesai.")
-                    break
-            except Exception:
-                break
+                # Extraksi Judul
+                title_elem = await card.query_selector("h1, h2, h3, h4, .title, a")
+                title = await title_elem.inner_text() if title_elem else ""
+                title = title.strip()
+                
+                # Extraksi Link
+                link_elem = await card.query_selector("a")
+                link = await link_elem.get_attribute("href") if link_elem else ""
+                if link and not link.startswith("http"):
+                    link = "https://www.unesa.ac.id" + link
 
-            time.sleep(1.5)
+                # Extraksi Teks Mentah untuk Tanggal, Kategori, & Views
+                raw_text = await card.inner_text()
+                
+                # Extract Views (misal: 297 views)
+                views_match = re.search(r'(\d+)\s*views', raw_text, re.IGNORECASE)
+                views = int(views_match.group(1)) if views_match else 0
+                
+                # Extract Tanggal (sederhana)
+                date_match = re.search(r'\d{1,2}\s+[A-Za-z]+\s+\d{4}', raw_text)
+                tanggal = date_match.group(0) if date_match else "Terbaru"
 
-            for _ in range(4):
-                page.evaluate("window.scrollBy(0, 600);")
-                time.sleep(0.3)
+                # Extract Kategori dari Teks Card
+                kategori = "Umum"
+                if "Pikiran Pakar" in raw_text or "Kata Pakar" in raw_text:
+                    kategori = "Kata Pakar"
+                elif "Seminar" in raw_text or "Webinar" in raw_text:
+                    kategori = "Seminar atau Webinar"
 
-            html = page.content()
-            soup = BeautifulSoup(html, 'html.parser')
+                if title and len(title) > 10:
+                    articles_data.append({
+                        "tanggal": tanggal,
+                        "judul": title,
+                        "kategori": kategori,
+                        "url": link,
+                        "views": views
+                    })
+            except Exception as ex:
+                continue
 
-            a_tags = soup.find_all('a')
-            count_page = 0
+        await browser.close()
 
-            for a in a_tags:
-                link = a.get('href', '')
-                if not link or '#' in link or 'javascript' in link:
-                    continue
-
-                if not link.startswith('http'):
-                    link = 'https://unesa.ac.id' + ('/' if not link.startswith('/') else '') + link
-
-                if 'unesa.ac.id' not in link or link in seen_links:
-                    continue
-
-                parent = a.find_parent(['div', 'article', 'li'])
-                date_text = ""
-                if parent:
-                    text_all = parent.get_text()
-                    dm = re.search(r'\d{1,2}\s+[A-Za-z]+\s+\d{4}', text_all)
-                    if dm:
-                        date_text = dm.group(0)
-
-                day, month, year, formatted_date = parse_date(date_text)
-
-                if not formatted_date or not year:
-                    continue
-
-                if year < 2026:
-                    print(f">> Menemukan berita tahun {year} ({formatted_date}). Perekaman selesai!")
-                    stop_scraping = True
-                    break
-
-                judul = clean_text(a.get_text())
-                if len(judul) < 20 or any(ex in judul.lower() for ex in EXCLUDE_WORDS):
-                    continue
-
-                # Kategori otomatis berdasarkan topik judul
-                kategori = categorize_topic(judul)
-
-                all_articles.append({
-                    'tanggal': formatted_date,
-                    'judul': judul,
-                    'kategori': kategori,
-                    'link': link,
-                    'bulan': month,
-                    'tahun': year
-                })
-                seen_links.add(link)
-                count_page += 1
-
-            print(f"Halaman {p_num}: {count_page} artikel berita valid terambil.")
-
-            if stop_scraping:
-                break
-
-            p_num += 1
-
-        browser.close()
-
-    if all_articles:
-        final_df = pd.DataFrame(all_articles)
-        final_df = final_df.drop_duplicates(subset=['link'], keep='first')
-        final_df.to_csv(CSV_FILE, index=False)
-        print(f"\n==========================================")
-        print(f"SUKSES TOTAL! {len(final_df)} berita murni tersimpan dengan kategori terpisah di '{CSV_FILE}'.")
-        print(f"==========================================")
+    # Simpan/Perbarui CSV
+    csv_file = "rekap_berita_unesa.csv"
+    if articles_data:
+        new_df = pd.DataFrame(articles_data)
+        if os.path.exists(csv_file):
+            old_df = pd.read_csv(csv_file)
+            combined_df = pd.concat([new_df, old_df]).drop_duplicates(subset=['judul'], keep='first')
+            combined_df.to_csv(csv_file, index=False)
+            print(f"Berhasil memperbarui {csv_file}. Total data: {len(combined_df)}")
+        else:
+            new_df.to_csv(csv_file, index=False)
+            print(f"File {csv_file} baru berhasil dibuat dengan {len(new_df)} data.")
+    else:
+        print("Tidak ada data baru yang didapatkan.")
 
 if __name__ == "__main__":
-    run_local_scraper()
+    asyncio.run(scrape_unesa_internal())
