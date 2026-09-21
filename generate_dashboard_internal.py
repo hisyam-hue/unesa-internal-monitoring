@@ -115,6 +115,11 @@ def generate_dashboard():
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
+                <!-- TOMBOL SWITCH KE DASHBOARD EKSTERNAL -->
+                <a href="eksternal.html" class="bg-amber-500 hover:bg-amber-400 text-slate-900 px-3 py-1.5 rounded-xl text-xs font-bold shadow flex items-center gap-1.5 transition-all">
+                    🌐 Switch Eksternal
+                </a>
+
                 <div class="bg-indigo-950/60 backdrop-blur border border-indigo-400/30 rounded-xl p-1 flex text-xs font-semibold">
                     <button onclick="switchTab('ikhtisar')" id="tab-ikhtisar" class="tab-btn active text-indigo-200 px-3 py-1.5 rounded-lg transition-all">⚙ Ikhtisar</button>
                     <button onclick="switchTab('rekap')" id="tab-rekap" class="tab-btn text-indigo-200 px-3 py-1.5 rounded-lg transition-all">📄 Rekap Data</button>
@@ -429,7 +434,7 @@ def generate_dashboard():
         f.write(html_content)
         
     shutil.copy('dashboard_internal.html', 'index.html')
-    print("Dashboard internal berhasil diperbarui dengan Analytics 10 Tema & Views!")
+    print("Dashboard internal berhasil diperbarui dengan Analytics 10 Tema & Tombol Switch Eksternal!")
 
 if __name__ == '__main__':
     generate_dashboard()
