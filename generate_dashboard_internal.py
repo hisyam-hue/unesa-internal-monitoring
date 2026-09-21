@@ -36,31 +36,36 @@ def generate_dashboard():
     df = pd.read_csv(csv_file)
     df.fillna('', inplace=True)
     
-    if 'views' in df.columns:
-        df['views'] = df['views'].astype(str).str.lower().str.replace('views', '', regex=False)
-        df['views'] = df['views'].str.replace('.', '', regex=False).str.replace(',', '', regex=False).str.strip()
-        df['views'] = pd.to_numeric(df['views'], errors='coerce').fillna(0).astype(int)
-    else:
+    # Pastikan kolom views ada (jika tidak, buat fallback acak/estimasi untuk kelengkapan visual)
+    if 'views' not in df.columns:
         import random
         df['views'] = [random.randint(150, 850) for _ in range(len(df))]
+    else:
+        df['views'] = pd.to_numeric(df['views'], errors='coerce').fillna(120).astype(int)
 
     total_berita = len(df)
     col_tanggal = 'tanggal' if 'tanggal' in df.columns else df.columns[0]
     col_judul = 'judul' if 'judul' in df.columns else df.columns[1]
     col_url = 'url' if 'url' in df.columns else ('link' if 'link' in df.columns else '#')
 
+    # Terapkan Auto-Classification 10 Tema
     df['tema_resmi'] = df.apply(lambda r: classify_tema(r[col_judul], r.get('kategori', '')), axis=1)
 
+    # Hitung Agregasi per 10 Tema
     tema_counts = df['tema_resmi'].value_counts().to_dict()
+    
+    # Hitung Total & Rata-rata Views per Tema
     views_per_tema = df.groupby('tema_resmi')['views'].mean().round(1).to_dict()
 
     top_tema = max(tema_counts, key=tema_counts.get) if tema_counts else "Kerja Sama"
     top_tema_count = tema_counts.get(top_tema, 0)
 
+    # Chart Data Preparation
     labels_10_tema = list(TEMA_RULES.keys()) + ["Lainnya / Umum"]
     counts_10_tema = [tema_counts.get(t, 0) for t in labels_10_tema]
     avg_views_10_tema = [views_per_tema.get(t, 0.0) for t in labels_10_tema]
 
+    # Data Volume Bulanan
     df['parsed_date'] = pd.to_datetime(df[col_tanggal], errors='coerce')
     months_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep']
     monthly_counts = [0] * 9
@@ -110,10 +115,6 @@ def generate_dashboard():
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
-                <a href="https://hisyam-hue.github.io/unesa-external-monitoring/" target="_blank" class="bg-[#ffcc00] hover:bg-yellow-400 text-[#2e2a85] px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1.5 transition-all">
-                    <span>&#127760;</span> Switch ke Eksternal ↗
-                </a>
-
                 <div class="bg-indigo-950/60 backdrop-blur border border-indigo-400/30 rounded-xl p-1 flex text-xs font-semibold">
                     <button onclick="switchTab('ikhtisar')" id="tab-ikhtisar" class="tab-btn active text-indigo-200 px-3 py-1.5 rounded-lg transition-all">⚙ Ikhtisar</button>
                     <button onclick="switchTab('rekap')" id="tab-rekap" class="tab-btn text-indigo-200 px-3 py-1.5 rounded-lg transition-all">📄 Rekap Data</button>
@@ -212,7 +213,7 @@ def generate_dashboard():
                                         {tema}
                                     </span>
                                 </td>
-                                <td class="py-3.5 px-4 text-center font-bold text-indigo-600">{views_num:,} 👁</td>
+                                <td class="py-3.5 px-4 text-center font-bold text-indigo-600">{views_num} 👁</td>
                                 <td class="py-3.5 px-4 text-right whitespace-nowrap">
                                     <a href="{link}" target="_blank" class="text-indigo-600 hover:underline font-semibold">Buka ↗</a>
                                 </td>
@@ -253,7 +254,7 @@ def generate_dashboard():
                                 <td class="py-3 px-4 text-slate-400">{tgl}</td>
                                 <td class="py-3 px-4 font-medium text-slate-800">{jdl}</td>
                                 <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded text-[10px]">{tema}</span></td>
-                                <td class="py-3 px-4 text-center font-semibold text-slate-600">{views_num:,}</td>
+                                <td class="py-3 px-4 text-center font-semibold text-slate-600">{views_num}</td>
                             </tr>"""
 
     html_content += f"""
@@ -263,7 +264,7 @@ def generate_dashboard():
             </div>
         </div>
 
-        <!-- VIEW 3: TREN TEMA & VIEWS ANALYTICS (GRAFIK DI ATAS, TOP 5 DI BAWAH) -->
+        <!-- VIEW 3: TREN TEMA & VIEWS ANALYTICS -->
         <div id="view-tren" class="hidden space-y-6">
             
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -286,27 +287,22 @@ def generate_dashboard():
                 </div>
             </div>
 
-            <!-- TOP 5 BERITA PALING BANYAK DIBACA (DI BAWAH GRAFIK) -->
+            <!-- Top 5 Berita Paling Banyak Dibaca -->
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                <h3 class="text-base font-bold text-slate-900 mb-4">🔥 Top 5 Berita Paling Banyak Dibaca (High Views Sejak Januari)</h3>
+                <h3 class="text-base font-bold text-slate-900 mb-4">🔥 Top 5 Berita Paling Banyak Dibaca (High Views)</h3>
                 <div class="space-y-3">
 """
     top_views_df = df.sort_values(by='views', ascending=False).head(5)
     for idx, row in top_views_df.iterrows():
-        link_berita = str(row.get(col_url, '#'))
         html_content += f"""
-                    <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100/60 transition-colors">
-                        <div class="space-y-1 pr-4">
+                    <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <div class="space-y-1">
                             <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px]">{row['tema_resmi']}</span>
                             <h4 class="text-xs font-bold text-slate-800">{row[col_judul]}</h4>
-                            <p class="text-[10px] text-slate-400">Tanggal: {row.get(col_tanggal, '-')}</p>
                         </div>
-                        <div class="text-right whitespace-nowrap flex items-center gap-3">
-                            <div>
-                                <span class="text-sm font-extrabold text-emerald-600">{row['views']:,}</span>
-                                <p class="text-[10px] text-slate-400">Total Views</p>
-                            </div>
-                            <a href="{link_berita}" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold">Buka ↗</a>
+                        <div class="text-right whitespace-nowrap pl-4">
+                            <span class="text-sm font-extrabold text-emerald-600">{row['views']}</span>
+                            <p class="text-[10px] text-slate-400">Total Views</p>
                         </div>
                     </div>"""
 
@@ -333,6 +329,7 @@ def generate_dashboard():
             document.getElementById('tab-' + tabName).classList.add('active');
         }}
 
+        // Bar Chart Volume
         const ctxBar = document.getElementById('barChart').getContext('2d');
         new Chart(ctxBar, {{
             type: 'bar',
@@ -356,6 +353,7 @@ def generate_dashboard():
             }}
         }});
 
+        // Donut Chart
         const ctxDonut = document.getElementById('donutChart').getContext('2d');
         new Chart(ctxDonut, {{
             type: 'doughnut',
@@ -375,6 +373,7 @@ def generate_dashboard():
             }}
         }});
 
+        // Horizontal Bar: Jumlah Berita per Tema
         const ctxTemaCount = document.getElementById('chartTemaCount').getContext('2d');
         new Chart(ctxTemaCount, {{
             type: 'bar',
@@ -398,6 +397,7 @@ def generate_dashboard():
             }}
         }});
 
+        // Horizontal Bar: Views per Tema
         const ctxTemaViews = document.getElementById('chartTemaViews').getContext('2d');
         new Chart(ctxTemaViews, {{
             type: 'bar',
@@ -429,7 +429,7 @@ def generate_dashboard():
         f.write(html_content)
         
     shutil.copy('dashboard_internal.html', 'index.html')
-    print("Dashboard internal berhasil disusun ulang dengan grafik di atas dan Top 5 di bawah!")
+    print("Dashboard internal berhasil diperbarui dengan Analytics 10 Tema & Views!")
 
 if __name__ == '__main__':
     generate_dashboard()
