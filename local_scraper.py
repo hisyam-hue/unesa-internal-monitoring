@@ -39,7 +39,7 @@ async def scrape_unesa_internal():
 
             print(f"Ditemukan {len(cards)} elemen artikel di halaman ini.")
 
-            for card in cards[:150]: # Kapasitas batch diperbesar agar berita populer terekam
+            for card in cards: # Kapasitas batch diperbesar agar berita populer terekam
                 try:
                     # Ekstraksi Judul
                     title_elem = await card.query_selector("h1, h2, h3, h4, .title, a")
@@ -55,10 +55,14 @@ async def scrape_unesa_internal():
                     # Ekstraksi Teks Mentah untuk Tanggal, Kategori, & Views
                     raw_text = await card.inner_text()
 
-                    # Extract Views (misal: 297 views)
-                    views_match = re.search(r'(\d+)\s*views', raw_text, re.IGNORECASE)
-                    views = int(views_match.group(1)) if views_match else 0
-
+                    # Extract Views (Mendukung angka ribuan dengan titik, misal: 2.753 views)
+                    views_match = re.search(r'([\d\.]+)\s*views', raw_text, re.IGNORECASE)
+                    if views_match:
+                        raw_v = views_match.group(1).replace('.', '')
+                        views = int(raw_v) if raw_v.isdigit() else 0
+                    else:
+                        views = 0
+                    
                     # Extract Tanggal (sederhana)
                     date_match = re.search(r'\d{1,2}\s+[A-Za-z]+\s+\d{4}', raw_text)
                     tanggal = date_match.group(0) if date_match else "Terbaru"
