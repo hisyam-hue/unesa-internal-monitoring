@@ -21,15 +21,18 @@ async def scrape_unesa_internal():
         page_detail = None
         try:
             page_detail = await context.new_page()
-            await page_detail.goto(url, timeout=25000, wait_until="domcontentloaded")
+            # Memastikan halaman dimuat sepenuhnya agar elemen views muncul
+            await page_detail.goto(url, timeout=30000, wait_until="networkidle")
+            
             detail_text = await page_detail.inner_text("body")
             
-            # Mencari pola angka views di halaman detail (misal: "2.753 Views" atau "Dilihat 1,200 kali")
-            views_match = re.search(r'([\d\.]+)\s*(?:views|dilihat|pembaca)', detail_text, re.IGNORECASE)
+            # Mencari pola angka views yang mengikuti format situs UNESA (contoh: "2.753 views")[cite: 9]
+            views_match = re.search(r'([\d\.]+)\s*views', detail_text, re.IGNORECASE)
             if views_match:
                 raw_v = views_match.group(1).replace('.', '').replace(',', '')
                 if raw_v.isdigit():
                     return int(raw_v)
+            
             return 0
         except Exception:
             return 0
@@ -45,7 +48,7 @@ async def scrape_unesa_internal():
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
         page = await context.new_page()
-
+        
         articles_data = []
 
         for url in urls:
