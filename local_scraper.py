@@ -18,10 +18,9 @@ async def scrape_unesa_internal():
         # Launch browser headless mode untuk GitHub Actions & Local
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        page = await context.new_context() # Atau context.new_page() sesuai aslinya
-        
-        # Menggunakan page dari konteks yang ada
         page = await context.new_page()
+        
+        
 
         articles_data = []
 
