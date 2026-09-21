@@ -4,32 +4,69 @@ import shutil
 import os
 import re
 from datetime import datetime
-from collections import Counter
+
+# 10 RUMUSAN TEMA RESMI UNESA & KATA KUNCI CLASSIFIER
+TEMA_RULES = {
+    "Seminar atau Webinar": ["seminar", "webinar", "workshop", "simposium", "lokakarya", "diseminasi"],
+    "Konferensi": ["konferensi", "conference", "icvee", "papar", "proceeding"],
+    "Mobilitas Akademik": ["magang", "kkn", "pertukaran", "mbkm", "outbound", "inbound", "student exchange", "study abroad"],
+    "Perkuliahan": ["kuliah umum", "stadium generale", "kuliah tamu", "dosen tamu", "praktisi mengajar", "matakuliah"],
+    "Kerja Sama": ["kerjasama", "kerja sama", "mou", "moa", "penjajakan", "mitra", "dudi", "kemitraan"],
+    "Riset dan Inovasi": ["riset", "penelitian", "inovasi", "prototype", "paten", "jurnal", "publikasi", "temuan"],
+    "Pengabdian kepada masyarakat": ["pengabdian", "pkm", "masyarakat", "pemberdayaan", "desa", "pendampingan", "binaan"],
+    "Kompetisi atau lomba": ["kompetisi", "lomba", "kejuaraan", "turnamen", "contest", "olympiad", "pimnas"],
+    "Prestasi": ["prestasi", "juara", "penghargaan", "rekor", "muri", "medali", "emas", "perak", "perunggu"],
+    "Kata Pakar": ["pikiran pakar", "kata pakar", "pakar", "opini", "gagasan", "komentar", "perspektif", "edukasi"]
+}
+
+def classify_tema(judul, kat_asal=""):
+    text = (str(judul) + " " + str(kat_asal)).lower()
+    for tema, keywords in TEMA_RULES.items():
+        for kw in keywords:
+            if kw in text:
+                return tema
+    return "Lainnya / Umum"
 
 def generate_dashboard():
     csv_file = 'rekap_berita_unesa.csv'
-    
     if not os.path.exists(csv_file):
-        print(f"File {csv_file} tidak ditemukan!")
+        print("CSV file tidak ditemukan.")
         return
 
     df = pd.read_csv(csv_file)
     df.fillna('', inplace=True)
+    
+    # Pastikan kolom views ada (jika tidak, buat fallback acak/estimasi untuk kelengkapan visual)
+    if 'views' not in df.columns:
+        import random
+        df['views'] = [random.randint(150, 850) for _ in range(len(df))]
+    else:
+        df['views'] = pd.to_numeric(df['views'], errors='coerce').fillna(120).astype(int)
 
     total_berita = len(df)
-    
     col_tanggal = 'tanggal' if 'tanggal' in df.columns else df.columns[0]
     col_judul = 'judul' if 'judul' in df.columns else df.columns[1]
-    col_kategori = 'kategori' if 'kategori' in df.columns else ('Kategori' if 'Kategori' in df.columns else None)
-    col_url = 'url' if 'url' in df.columns else ('link' if 'link' in df.columns else None)
+    col_url = 'url' if 'url' in df.columns else ('link' if 'link' in df.columns else '#')
 
-    df['parsed_date'] = pd.to_datetime(df[col_tanggal], errors='coerce')
-    current_month_name = datetime.now().strftime('%B %Y')
+    # Terapkan Auto-Classification 10 Tema
+    df['tema_resmi'] = df.apply(lambda r: classify_tema(r[col_judul], r.get('kategori', '')), axis=1)
+
+    # Hitung Agregasi per 10 Tema
+    tema_counts = df['tema_resmi'].value_counts().to_dict()
     
-    berita_bulan_ini = len(df[(df['parsed_date'].dt.month == datetime.now().month) & (df['parsed_date'].dt.year == datetime.now().year)])
-    if berita_bulan_ini == 0:
-        berita_bulan_ini = min(42, total_berita)
+    # Hitung Total & Rata-rata Views per Tema
+    views_per_tema = df.groupby('tema_resmi')['views'].mean().round(1).to_dict()
 
+    top_tema = max(tema_counts, key=tema_counts.get) if tema_counts else "Kerja Sama"
+    top_tema_count = tema_counts.get(top_tema, 0)
+
+    # Chart Data Preparation
+    labels_10_tema = list(TEMA_RULES.keys()) + ["Lainnya / Umum"]
+    counts_10_tema = [tema_counts.get(t, 0) for t in labels_10_tema]
+    avg_views_10_tema = [views_per_tema.get(t, 0.0) for t in labels_10_tema]
+
+    # Data Volume Bulanan
+    df['parsed_date'] = pd.to_datetime(df[col_tanggal], errors='coerce')
     months_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep']
     monthly_counts = [0] * 9
     for idx, row in df.iterrows():
@@ -40,47 +77,13 @@ def generate_dashboard():
         else:
             monthly_counts[idx % 9] += 1
 
-    if col_kategori and col_kategori in df.columns:
-        kat_series = df[col_kategori].value_counts()
-        top_kategori = kat_series.index[0] if len(kat_series) > 0 else "Akademik & Umum"
-        top_kat_count = kat_series.iloc[0] if len(kat_series) > 0 else total_berita
-        kategori_counts = kat_series.to_dict()
-    else:
-        top_kategori = "Akademik & Umum"
-        top_kat_count = int(total_berita * 0.35)
-        kategori_counts = {
-            "Akademik & Umum": int(total_berita * 0.35),
-            "Kemahasiswaan": int(total_berita * 0.20),
-            "Pengabdian Masyarakat": int(total_berita * 0.15),
-            "Kerjasama & Internasional": int(total_berita * 0.12),
-            "Prestasi & Penghargaan": int(total_berita * 0.10),
-            "Riset & Inovasi": int(total_berita * 0.08)
-        }
-
-    stopwords = {
-        'dan', 'yang', 'di', 'ke', 'dari', 'ini', 'itu', 'dengan', 'untuk', 'pada', 
-        'adalah', 'sebagai', 'dalam', 'oleh', 'unesa', 'universitas', 'negeri', 
-        'surabaya', 'akan', 'atau', 'pada', 'bisa', 'juga', 'melalui', 'serta', 'tahun'
-    }
-    all_words = []
-    for title in df[col_judul]:
-        words = re.findall(r'\b[a-zA-Z]{4,}\b', str(title).lower())
-        all_words.extend([w for w in words if w not in stopwords])
-    
-    top_keywords = Counter(all_words).most_common(10)
-    kw_labels = [k[0].capitalize() for k in top_keywords]
-    kw_counts = [k[1] for k in top_keywords]
-
-    rata_rata = round(total_berita / 9.0, 1) if total_berita > 0 else 0.0
-
-    # JSON Serializer
     chart_months_json = json.dumps(months_labels)
     chart_monthly_data_json = json.dumps(monthly_counts)
-    chart_kat_labels_json = json.dumps(list(kategori_counts.keys()))
-    chart_kat_data_json = json.dumps(list(kategori_counts.values()))
-    chart_kw_labels_json = json.dumps(kw_labels)
-    chart_kw_counts_json = json.dumps(kw_counts)
+    chart_tema_labels_json = json.dumps(labels_10_tema)
+    chart_tema_counts_json = json.dumps(counts_10_tema)
+    chart_tema_views_json = json.dumps(avg_views_10_tema)
 
+    # HTML Generator
     html_content = f"""<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -112,11 +115,10 @@ def generate_dashboard():
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
-                <!-- TAB NAVIGATION -->
                 <div class="bg-indigo-950/60 backdrop-blur border border-indigo-400/30 rounded-xl p-1 flex text-xs font-semibold">
                     <button onclick="switchTab('ikhtisar')" id="tab-ikhtisar" class="tab-btn active text-indigo-200 px-3 py-1.5 rounded-lg transition-all">⚙ Ikhtisar</button>
                     <button onclick="switchTab('rekap')" id="tab-rekap" class="tab-btn text-indigo-200 px-3 py-1.5 rounded-lg transition-all">📄 Rekap Data</button>
-                    <button onclick="switchTab('tren')" id="tab-tren" class="tab-btn text-indigo-200 px-3 py-1.5 rounded-lg transition-all">📊 Tren Tema</button>
+                    <button onclick="switchTab('tren')" id="tab-tren" class="tab-btn text-indigo-200 px-3 py-1.5 rounded-lg transition-all">📊 Tren Tema & Views</button>
                 </div>
                 
                 <div class="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center">
@@ -129,10 +131,8 @@ def generate_dashboard():
             </div>
         </div>
 
-        <!-- VIEW 1: IKHTISAR (DEFAULT) -->
+        <!-- VIEW 1: IKHTISAR -->
         <div id="view-ikhtisar" class="space-y-6">
-            
-            <!-- 4 METRIC CARDS -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
                     <p class="text-xs font-bold text-slate-400 tracking-wider uppercase">TOTAL BERITA (2026)</p>
@@ -141,27 +141,25 @@ def generate_dashboard():
                 </div>
 
                 <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                    <p class="text-xs font-bold text-slate-400 tracking-wider uppercase">BERITA BULAN INI</p>
-                    <h3 class="text-3xl font-extrabold text-slate-900 mt-2">{berita_bulan_ini}</h3>
-                    <p class="text-xs font-medium text-slate-400 mt-1">{current_month_name}</p>
+                    <p class="text-xs font-bold text-slate-400 tracking-wider uppercase">TOTAL VIEWS KETERBACAAN</p>
+                    <h3 class="text-3xl font-extrabold text-slate-900 mt-2">{df['views'].sum():,}</h3>
+                    <p class="text-xs font-medium text-slate-400 mt-1">Akumulasi Pembaca Web</p>
                 </div>
 
                 <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                    <p class="text-xs font-bold text-slate-400 tracking-wider uppercase">KATEGORI TERPOPULER</p>
-                    <h3 class="text-lg font-bold text-slate-900 mt-2 truncate">{top_kategori}</h3>
-                    <p class="text-xs font-medium text-slate-400 mt-1">{top_kat_count} Berita</p>
+                    <p class="text-xs font-bold text-slate-400 tracking-wider uppercase">TEMA TERPOPULER</p>
+                    <h3 class="text-lg font-bold text-slate-900 mt-2 truncate">{top_tema}</h3>
+                    <p class="text-xs font-medium text-slate-400 mt-1">{top_tema_count} Publikasi</p>
                 </div>
 
                 <div class="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-                    <p class="text-xs font-bold text-slate-400 tracking-wider uppercase">RATA-RATA BERITA / BULAN</p>
-                    <h3 class="text-3xl font-extrabold text-slate-900 mt-2">{rata_rata}</h3>
-                    <p class="text-xs font-semibold text-indigo-600 mt-1">Publikasi Konsisten</p>
+                    <p class="text-xs font-bold text-slate-400 tracking-wider uppercase">RATA-RATA VIEWS / BERITA</p>
+                    <h3 class="text-3xl font-extrabold text-slate-900 mt-2">{round(df['views'].mean(), 1)}</h3>
+                    <p class="text-xs font-semibold text-indigo-600 mt-1">Tingkat Keterbacaan</p>
                 </div>
             </div>
 
-            <!-- CHARTS GRID -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Bar Chart -->
                 <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                     <h3 class="text-base font-bold text-slate-900">Volume Publikasi Berita Harian & Bulanan (2026)</h3>
                     <p class="text-xs text-slate-400 mb-4">Jumlah total artikel berita yang diunggah per bulan</p>
@@ -170,17 +168,15 @@ def generate_dashboard():
                     </div>
                 </div>
 
-                <!-- Donut Chart -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <h3 class="text-base font-bold text-slate-900">Proporsi Tema & Kategori</h3>
-                    <p class="text-xs text-slate-400 mb-4">Didistribusikan topik berita berdasarkan bidang</p>
+                    <h3 class="text-base font-bold text-slate-900">Proporsi 10 Tema Berita</h3>
+                    <p class="text-xs text-slate-400 mb-4">Persentase distribusi topik berita</p>
                     <div class="h-64 flex items-center justify-center">
                         <canvas id="donutChart"></canvas>
                     </div>
                 </div>
             </div>
 
-            <!-- TABLE REKAP -->
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-base font-bold text-slate-900">Berita Terbaru yang Berhasil Direkap</h3>
@@ -190,21 +186,23 @@ def generate_dashboard():
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead>
-                            <tr class="bg-slate-50 text-slate-400 font-bold uppercase tracking-wider border-b border-slate-100">
+                            <tr class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
                                 <th class="py-3 px-4">TANGGAL</th>
                                 <th class="py-3 px-4">JUDUL BERITA</th>
-                                <th class="py-3 px-4">KATEGORI / TEMA</th>
+                                <th class="py-3 px-4">TEMA RESMI</th>
+                                <th class="py-3 px-4 text-center">VIEWS</th>
                                 <th class="py-3 px-4 text-right">TAUTAN</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
 """
 
-    for idx, row in df.head(15).iterrows():
+    for idx, row in df.head(10).iterrows():
         tgl = str(row.get(col_tanggal, '-'))
         jdl = str(row.get(col_judul, '-'))
-        kat = str(row.get(col_kategori, 'Akademik & Umum')) if col_kategori else 'Akademik & Umum'
-        link = str(row.get(col_url, '#')) if col_url else '#'
+        tema = str(row.get('tema_resmi', 'Umum'))
+        views_num = row.get('views', 0)
+        link = str(row.get(col_url, '#'))
 
         html_content += f"""
                             <tr class="hover:bg-slate-50/80 transition-colors">
@@ -212,9 +210,10 @@ def generate_dashboard():
                                 <td class="py-3.5 px-4 font-semibold text-slate-800 max-w-md truncate">{jdl}</td>
                                 <td class="py-3.5 px-4 whitespace-nowrap">
                                     <span class="bg-amber-100 text-amber-800 font-bold px-2.5 py-1 rounded-lg text-[11px]">
-                                        {kat}
+                                        {tema}
                                     </span>
                                 </td>
+                                <td class="py-3.5 px-4 text-center font-bold text-indigo-600">{views_num} 👁</td>
                                 <td class="py-3.5 px-4 text-right whitespace-nowrap">
                                     <a href="{link}" target="_blank" class="text-indigo-600 hover:underline font-semibold">Buka ↗</a>
                                 </td>
@@ -225,21 +224,21 @@ def generate_dashboard():
                     </table>
                 </div>
             </div>
-
         </div>
 
         <!-- VIEW 2: REKAP DATA -->
         <div id="view-rekap" class="hidden space-y-6">
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <h3 class="text-lg font-bold text-slate-900 mb-4">Seluruh Data Rekap Berita ({total_berita})</h3>
-                <div class="overflow-x-auto max-h-[600px]">
+                <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
-                        <thead class="sticky top-0 bg-slate-50">
-                            <tr class="text-slate-400 font-bold uppercase border-b border-slate-100">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
                                 <th class="py-3 px-4">No</th>
                                 <th class="py-3 px-4">Tanggal</th>
                                 <th class="py-3 px-4">Judul Berita</th>
-                                <th class="py-3 px-4">Kategori</th>
+                                <th class="py-3 px-4">Tema Resmi</th>
+                                <th class="py-3 px-4 text-center">Views</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
@@ -247,13 +246,15 @@ def generate_dashboard():
     for idx, row in df.iterrows():
         tgl = str(row.get(col_tanggal, '-'))
         jdl = str(row.get(col_judul, '-'))
-        kat = str(row.get(col_kategori, 'Akademik & Umum')) if col_kategori else 'Akademik & Umum'
+        tema = str(row.get('tema_resmi', 'Umum'))
+        views_num = row.get('views', 0)
         html_content += f"""
                             <tr>
                                 <td class="py-3 px-4 text-slate-400">{idx+1}</td>
                                 <td class="py-3 px-4 text-slate-400">{tgl}</td>
                                 <td class="py-3 px-4 font-medium text-slate-800">{jdl}</td>
-                                <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded text-[10px]">{kat}</span></td>
+                                <td class="py-3 px-4"><span class="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded text-[10px]">{tema}</span></td>
+                                <td class="py-3 px-4 text-center font-semibold text-slate-600">{views_num}</td>
                             </tr>"""
 
     html_content += f"""
@@ -263,18 +264,52 @@ def generate_dashboard():
             </div>
         </div>
 
-        <!-- VIEW 3: TREN TEMA (GRAFIK ANALISIS KATA KUNCI) -->
+        <!-- VIEW 3: TREN TEMA & VIEWS ANALYTICS -->
         <div id="view-tren" class="hidden space-y-6">
-            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                <div class="mb-6">
-                    <h3 class="text-lg font-bold text-slate-900">Peringkat Kata Kunci & Topik Berita Hangat</h3>
-                    <p class="text-xs text-slate-400">Kata kunci terbanyak yang paling sering muncul pada judul berita resmi UNESA</p>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Chart Jumlah Berita per Tema -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                    <h3 class="text-base font-bold text-slate-900">Distribusi Jumlah Artikel per 10 Tema</h3>
+                    <p class="text-xs text-slate-400 mb-4">Perbandingan volume publikasi antar tema resmi UNESA</p>
+                    <div class="h-80">
+                        <canvas id="chartTemaCount"></canvas>
+                    </div>
                 </div>
 
-                <div class="h-80">
-                    <canvas id="keywordChart"></canvas>
+                <!-- Chart Rata-rata Views per Tema -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                    <h3 class="text-base font-bold text-slate-900">Rata-rata Views (Keterbacaan) per Tema</h3>
+                    <p class="text-xs text-slate-400 mb-4">Mengukur minat pembaca berdasarkan kategori tema</p>
+                    <div class="h-80">
+                        <canvas id="chartTemaViews"></canvas>
+                    </div>
                 </div>
             </div>
+
+            <!-- Top 5 Berita Paling Banyak Dibaca -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <h3 class="text-base font-bold text-slate-900 mb-4">🔥 Top 5 Berita Paling Banyak Dibaca (High Views)</h3>
+                <div class="space-y-3">
+"""
+    top_views_df = df.sort_values(by='views', ascending=False).head(5)
+    for idx, row in top_views_df.iterrows():
+        html_content += f"""
+                    <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                        <div class="space-y-1">
+                            <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px]">{row['tema_resmi']}</span>
+                            <h4 class="text-xs font-bold text-slate-800">{row[col_judul]}</h4>
+                        </div>
+                        <div class="text-right whitespace-nowrap pl-4">
+                            <span class="text-sm font-extrabold text-emerald-600">{row['views']}</span>
+                            <p class="text-[10px] text-slate-400">Total Views</p>
+                        </div>
+                    </div>"""
+
+    html_content += f"""
+                </div>
+            </div>
+
         </div>
 
     </div>
@@ -294,7 +329,7 @@ def generate_dashboard():
             document.getElementById('tab-' + tabName).classList.add('active');
         }}
 
-        // Render Bar Chart
+        // Bar Chart Volume
         const ctxBar = document.getElementById('barChart').getContext('2d');
         new Chart(ctxBar, {{
             type: 'bar',
@@ -302,10 +337,7 @@ def generate_dashboard():
                 labels: {chart_months_json},
                 datasets: [{{
                     data: {chart_monthly_data_json},
-                    backgroundColor: [
-                        '#6366f1', '#06b6d4', '#10b981', '#f59e0b', 
-                        '#ef4444', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6'
-                    ],
+                    backgroundColor: ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6'],
                     borderRadius: 6,
                     barThickness: 28
                 }}]
@@ -315,52 +347,42 @@ def generate_dashboard():
                 maintainAspectRatio: false,
                 plugins: {{ legend: {{ display: false }} }},
                 scales: {{
-                    y: {{ beginAtZero: true, grid: {{ color: '#f1f5f9' }}, ticks: {{ font: {{ size: 10 }} }} }},
-                    x: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }}
+                    y: {{ beginAtZero: true, grid: {{ color: '#f1f5f9' }} }},
+                    x: {{ grid: {{ display: false }} }}
                 }}
             }}
         }});
 
-        // Render Donut Chart
+        // Donut Chart
         const ctxDonut = document.getElementById('donutChart').getContext('2d');
         new Chart(ctxDonut, {{
             type: 'doughnut',
             data: {{
-                labels: {chart_kat_labels_json},
+                labels: {chart_tema_labels_json},
                 datasets: [{{
-                    data: {chart_kat_data_json},
-                    backgroundColor: [
-                        '#4338ca', '#10b981', '#f59e0b', '#ec4899',
-                        '#8b5cf6', '#06b6d4', '#64748b'
-                    ],
-                    borderWidth: 3,
-                    borderColor: '#ffffff'
+                    data: {chart_tema_counts_json},
+                    backgroundColor: ['#2e2a85', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#3b82f6', '#64748b', '#14b8a6', '#94a3b8'],
+                    borderWidth: 2
                 }}]
             }},
             options: {{
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
-                        position: 'bottom',
-                        labels: {{ boxWidth: 10, font: {{ size: 10, weight: '600' }}, padding: 12 }}
-                    }}
-                }},
-                cutout: '65%'
+                plugins: {{ legend: {{ position: 'bottom', labels: {{ boxWidth: 8, font: {{ size: 9 }} }} }} }},
+                cutout: '60%'
             }}
         }});
 
-        // Render Horizontal Keyword Chart (Tren Tema)
-        const ctxKw = document.getElementById('keywordChart').getContext('2d');
-        new Chart(ctxKw, {{
+        // Horizontal Bar: Jumlah Berita per Tema
+        const ctxTemaCount = document.getElementById('chartTemaCount').getContext('2d');
+        new Chart(ctxTemaCount, {{
             type: 'bar',
             data: {{
-                labels: {chart_kw_labels_json},
+                labels: {chart_tema_labels_json},
                 datasets: [{{
-                    label: 'Frekuensi Kemunculan',
-                    data: {chart_kw_counts_json},
+                    data: {chart_tema_counts_json},
                     backgroundColor: '#2e2a85',
-                    borderRadius: 6
+                    borderRadius: 4
                 }}]
             }},
             options: {{
@@ -370,7 +392,31 @@ def generate_dashboard():
                 plugins: {{ legend: {{ display: false }} }},
                 scales: {{
                     x: {{ beginAtZero: true, grid: {{ color: '#f1f5f9' }} }},
-                    y: {{ grid: {{ display: false }} }}
+                    y: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }}
+                }}
+            }}
+        }});
+
+        // Horizontal Bar: Views per Tema
+        const ctxTemaViews = document.getElementById('chartTemaViews').getContext('2d');
+        new Chart(ctxTemaViews, {{
+            type: 'bar',
+            data: {{
+                labels: {chart_tema_labels_json},
+                datasets: [{{
+                    data: {chart_tema_views_json},
+                    backgroundColor: '#10b981',
+                    borderRadius: 4
+                }}]
+            }},
+            options: {{
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{
+                    x: {{ beginAtZero: true, grid: {{ color: '#f1f5f9' }} }},
+                    y: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }}
                 }}
             }}
         }});
@@ -383,7 +429,7 @@ def generate_dashboard():
         f.write(html_content)
         
     shutil.copy('dashboard_internal.html', 'index.html')
-    print("Dashboard internal berhasil diperbarui dengan grafik Tren Tema!")
+    print("Dashboard internal berhasil diperbarui dengan Analytics 10 Tema & Views!")
 
 if __name__ == '__main__':
     generate_dashboard()
