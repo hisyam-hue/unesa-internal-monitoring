@@ -31,7 +31,7 @@ async def scrape_unesa_internal():
 
         print(f"Ditemukan {len(cards)} elemen artikel di halaman utama.")
 
-        for card in cards[:30]: # Ambil batch berita terbaru
+        for card in cards[:150]: # Ambil batch berita terbaru
             try:
                 # Extraksi Judul
                 title_elem = await card.query_selector("h1, h2, h3, h4, .title, a")
