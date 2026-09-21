@@ -14,13 +14,37 @@ async def scrape_unesa_internal():
         "https://www.unesa.ac.id/kategori/berita?page=3"
     ]
 
+    async def get_real_views(context, url):
+        """Fungsi pembantu untuk masuk ke halaman detail berita dan mengambil views asli"""
+        if not url:
+            return 0
+        page_detail = None
+        try:
+            page_detail = await context.new_page()
+            await page_detail.goto(url, timeout=25000, wait_until="domcontentloaded")
+            detail_text = await page_detail.inner_text("body")
+            
+            # Mencari pola angka views di halaman detail (misal: "2.753 Views" atau "Dilihat 1,200 kali")
+            views_match = re.search(r'([\d\.]+)\s*(?:views|dilihat|pembaca)', detail_text, re.IGNORECASE)
+            if views_match:
+                raw_v = views_match.group(1).replace('.', '').replace(',', '')
+                if raw_v.isdigit():
+                    return int(raw_v)
+            return 0
+        except Exception:
+            return 0
+        finally:
+            if page_detail:
+                try:
+                    await page_detail.close()
+                except:
+                    pass
+
     async with async_playwright() as p:
         # Launch browser headless mode untuk GitHub Actions & Local
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
         page = await context.new_page()
-        
-        
 
         articles_data = []
 
@@ -39,7 +63,7 @@ async def scrape_unesa_internal():
 
             print(f"Ditemukan {len(cards)} elemen artikel di halaman ini.")
 
-            for card in cards: # Kapasitas batch diperbesar agar berita populer terekam
+            for card in cards:
                 try:
                     # Ekstraksi Judul
                     title_elem = await card.query_selector("h1, h2, h3, h4, .title, a")
@@ -52,17 +76,9 @@ async def scrape_unesa_internal():
                     if link and not link.startswith("http"):
                         link = "https://www.unesa.ac.id" + link
 
-                    # Ekstraksi Teks Mentah untuk Tanggal, Kategori, & Views
+                    # Ekstraksi Teks Mentah untuk Tanggal & Kategori dari halaman arsip
                     raw_text = await card.inner_text()
 
-                    # Extract Views (Mendukung angka ribuan dengan titik, misal: 2.753 views)
-                    views_match = re.search(r'([\d\.]+)\s*views', raw_text, re.IGNORECASE)
-                    if views_match:
-                        raw_v = views_match.group(1).replace('.', '')
-                        views = int(raw_v) if raw_v.isdigit() else 0
-                    else:
-                        views = 0
-                    
                     # Extract Tanggal (sederhana)
                     date_match = re.search(r'\d{1,2}\s+[A-Za-z]+\s+\d{4}', raw_text)
                     tanggal = date_match.group(0) if date_match else "Terbaru"
@@ -73,6 +89,11 @@ async def scrape_unesa_internal():
                         kategori = "Kata Pakar"
                     elif "Seminar" in raw_text or "Webinar" in raw_text:
                         kategori = "Seminar atau Webinar"
+
+                    # AMBIL VIEWS REAL DARI HALAMAN DETAIL BERITA
+                    views = 0
+                    if link:
+                        views = await get_real_views(context, link)
 
                     if title and len(title) > 10:
                         articles_data.append({
@@ -93,7 +114,7 @@ async def scrape_unesa_internal():
             # Hapus duplikat berdasarkan judul jika ada
             df = df.drop_duplicates(subset=["judul"])
             df.to_csv("rekap_berita_unesa.csv", index=False)
-            print("Berhasil menyimpan data rekap_berita_unesa.csv")
+            print("Berhasil menyimpan data rekap_berita_unesa.csv dengan views riil.")
 
 if __name__ == "__main__":
     asyncio.run(scrape_unesa_internal())
