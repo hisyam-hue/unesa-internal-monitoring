@@ -41,8 +41,7 @@ def generate_dashboard():
         df['views'] = df['views'].str.replace('.', '', regex=False).str.replace(',', '', regex=False).str.strip()
         df['views'] = pd.to_numeric(df['views'], errors='coerce').fillna(0).astype(int)
     else:
-        import random
-        df['views'] = [random.randint(150, 850) for _ in range(len(df))]
+        df['views'] = 0
 
     total_berita = len(df)
     col_tanggal = 'tanggal' if 'tanggal' in df.columns else df.columns[0]
