@@ -36,7 +36,6 @@ def generate_dashboard():
     df = pd.read_csv(csv_file)
     df.fillna('', inplace=True)
     
-    # Pembersihan Views untuk mendukung angka ribuan dengan titik/koma
     if 'views' in df.columns:
         df['views'] = df['views'].astype(str).str.lower().str.replace('views', '', regex=False)
         df['views'] = df['views'].str.replace('.', '', regex=False).str.replace(',', '', regex=False).str.strip()
@@ -111,7 +110,7 @@ def generate_dashboard():
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
-                <!-- TOMBOL SWITCH EKSTERNAL YANG AMAN -->
+                <!-- TOMBOL SWITCH EKSTERNAL -->
                 <a href="https://hisyam-hue.github.io/unesa-external-monitoring/" target="_blank" class="bg-[#ffcc00] hover:bg-yellow-400 text-[#2e2a85] px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1.5 transition-all">
                     <span>&#127760;</span> Switch ke Eksternal ↗
                 </a>
@@ -431,7 +430,7 @@ def generate_dashboard():
         f.write(html_content)
         
     shutil.copy('dashboard_internal.html', 'index.html')
-    print("Dashboard internal berhasil digenerate dengan tombol switch dan layout stabil!")
+    print("Dashboard internal berhasil digenerate dengan tombol switch!")
 
 if __name__ == '__main__':
     generate_dashboard()
