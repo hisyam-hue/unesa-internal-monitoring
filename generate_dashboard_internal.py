@@ -11,9 +11,9 @@
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
-                <!-- TOMBOL SWITCH EKSTERNAL YANG DIPASTIKAN MUNCUL -->
-                <a href="eksternal.html" class="bg-[#ffcc00] hover:bg-yellow-400 text-[#2e2a85] px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1.5 transition-all">
-                    <span>🌐</span> Switch ke Eksternal
+                <!-- TOMBOL SWITCH KE DASHBOARD EKSTERNAL (URL GITHUB PAGES) -->
+                <a href="https://hisyam-hue.github.io/unesa-external-monitoring/" target="_blank" class="bg-[#ffcc00] hover:bg-yellow-400 text-[#2e2a85] px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-md flex items-center gap-1.5 transition-all">
+                    <span>🌐</span> Switch ke Eksternal ↗
                 </a>
 
                 <div class="bg-indigo-950/60 backdrop-blur border border-indigo-400/30 rounded-xl p-1 flex text-xs font-semibold">
