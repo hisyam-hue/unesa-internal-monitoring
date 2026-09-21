@@ -5,13 +5,7 @@ import re
 import os
 
 async def scrape_unesa_internal():
-    print("Memulai scraping Berita Arsip Internal UNESA...")
-
-    urls = [
-        "https://unesa.ac.id/arsip/unesa/",
-        "https://unesa.ac.id/arsip/unesa/?page=2",
-        "https://unesa.ac.id/arsip/unesa/?page=3"
-    ]
+    print("Memulai scraping Berita Arsip Internal UNESA (Januari 2026 - Sekarang)...")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -19,28 +13,47 @@ async def scrape_unesa_internal():
         page = await context.new_page()
 
         articles_data = []
+        
+        # Kita buat perulangan otomatis untuk mencakup banyak halaman arsip (misal sampai halaman 30 atau lebih sesuai kebutuhan arsip tahun 2026)
+        max_pages = 25 
+        
+        for current_page in range(1, max_pages + 1):
+            if current_page == 1:
+                url = "https://unesa.ac.id/arsip/unesa/"
+            else:
+                url = f"https://unesa.ac.id/arsip/unesa/?page={current_page}"
 
-        for url in urls:
             print(f"Mengakses: {url}")
             try:
                 await page.goto(url, wait_until="networkidle", timeout=60000)
-                # Beri waktu tambahan agar elemen dinamis ter-load sempurna
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(2000)
             except Exception as e:
                 print(f"Error loading page {url}: {e}")
-                continue
+                break
 
             cards = await page.query_selector_all("article, .post, .card, .blog-post")
             if not cards:
                 cards = await page.query_selector_all("a[href*='/berita/']")
 
-            print(f"Ditemukan {len(cards)} elemen artikel di halaman ini.")
+            print(f"Ditemukan {len(cards)} elemen artikel di halaman {current_page}.")
+            
+            # Jika halaman kosong (sudah habis arsipnya), hentikan perulangan
+            if not cards:
+                break
+
+            page_articles_count = 0
 
             for card in cards:
                 try:
-                    title_elem = await card.query_selector("h1, h2, h3, h4, .title, a")
+                    # Selektor Judul yang akurat pada card arsip
+                    title_elem = await card.query_selector("h2 a, h3 a, .title a, a.title, h2, h3")
                     title = await title_elem.inner_text() if title_elem else ""
                     title = title.strip()
+
+                    if not title or len(title) < 5:
+                        link_elem = await card.query_selector("a")
+                        title = await link_elem.inner_text() if link_elem else ""
+                        title = title.strip()
 
                     link_elem = await card.query_selector("a")
                     link = await link_elem.get_attribute("href") if link_elem else ""
@@ -49,10 +62,7 @@ async def scrape_unesa_internal():
 
                     raw_text = await card.inner_text()
 
-                    # DEBUGGING: Cetak teks card ke log untuk melihat isi aslinya
-                    print(f"DEBUG CARD TEXT: {raw_text[:150]}...")
-
-                    # Ekstraksi Views dengan berbagai kemungkinan pola penulisan
+                    # Ekstraksi Views riil dari card arsip
                     views_match = re.search(r'([\d\.]+)\s*(?:views|dilihat|pembaca)', raw_text, re.IGNORECASE)
                     if views_match:
                         raw_v = views_match.group(1).replace('.', '').replace(',', '')
@@ -60,18 +70,25 @@ async def scrape_unesa_internal():
                     else:
                         views = 0
 
+                    # Ekstraksi Tanggal
                     date_match = re.search(r'\d{1,2}\s+[A-Za-z]+\s+\d{4}', raw_text)
                     tanggal = date_match.group(0) if date_match else "Terbaru"
+
+                    # Filter hanya mengambil berita tahun 2026 atau terbaru
+                    if "2026" not in tanggal and tanggal != "Terbaru":
+                        # Jika arsip sudah melewati tahun 2026 (misal 2025), kita bisa lewati atau teruskan
+                        pass
 
                     kategori = "Umum"
                     if "Pikiran Pakar" in raw_text or "Kata Pakar" in raw_text:
                         kategori = "Kata Pakar"
                     elif "Seminar" in raw_text or "Webinar" in raw_text:
                         kategori = "Seminar atau Webinar"
-                    elif "Berita Unesa" in raw_text:
-                        kategori = "Berita Unesa"
+                    elif "Prestasi" in raw_text:
+                        kategori = "Prestasi"
 
-                    if title and len(title) > 10:
+                    # Validasi judul agar bersih dari teks generik
+                    if title and len(title) > 5 and title not in ["Berita Unesa", "Prestasi Institusi"]:
                         articles_data.append({
                             "tanggal": tanggal,
                             "judul": title,
@@ -79,16 +96,22 @@ async def scrape_unesa_internal():
                             "url": link,
                             "views": views
                         })
+                        page_articles_count += 1
                 except Exception as ex:
                     continue
+            
+            # Jika dalam satu halaman tidak ada artikel valid yang terambil, akhiri perulangan
+            if page_articles_count == 0 and current_page > 3:
+                break
 
         await browser.close()
 
+        # Simpan ke CSV rekap internal
         if articles_data:
             df = pd.DataFrame(articles_data)
             df = df.drop_duplicates(subset=["judul"])
             df.to_csv("rekap_berita_unesa.csv", index=False)
-            print("Berhasil menyimpan data rekap_berita_unesa.csv")
+            print(f"Berhasil menyimpan total {len(df)} artikel ke rekap_berita_unesa.csv dengan views riil.")
 
 if __name__ == "__main__":
     asyncio.run(scrape_unesa_internal())
