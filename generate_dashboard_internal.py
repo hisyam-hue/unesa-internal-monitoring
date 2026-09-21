@@ -57,32 +57,23 @@ def generate_dashboard():
             "Riset & Inovasi": int(total_berita * 0.08)
         }
 
-    # Comprehensive stop words dictionary to eliminate filler verbs, adverbs, and generic Indonesian words
     stopwords = {
         'dan', 'yang', 'di', 'ke', 'dari', 'ini', 'itu', 'dengan', 'untuk', 'pada', 
         'adalah', 'sebagai', 'dalam', 'oleh', 'unesa', 'universitas', 'negeri', 
-        'surabaya', 'akan', 'atau', 'bisa', 'juga', 'melalui', 'serta', 'tahun',
-        'perkuat', 'program', 'kerja', 'jadi', 'penguatan', 'gelar', 'dorong',
-        'wujudkan', 'tingkatkan', 'upaya', 'kembali', 'resmikan', 'buka', 'ikuti',
-        'terkait', 'satu', 'dua', 'tiga', 'para', 'tersebut', 'beberapa', 'adanya',
-        'setiap', 'melakukan', 'menggelar', 'raih', 'hasilkan', 'dapat', 'terus',
-        'secara', 'hingga', 'sampai', 'harus', 'pula', 'saja', 'ingin', 'bersama',
-        'berhasil', 'meraih', 'dapatkan', 'siap', 'lewat', 'guna', 'antara', 'mencapai',
-        'bentuk', 'tahap', 'satu', 'kian', 'selalu', 'kembali', 'buat', 'adapun'
+        'surabaya', 'akan', 'atau', 'pada', 'bisa', 'juga', 'melalui', 'serta', 'tahun'
     }
-
     all_words = []
     for title in df[col_judul]:
         words = re.findall(r'\b[a-zA-Z]{4,}\b', str(title).lower())
-        all_words.extend([w.capitalize() for w in words if w not in stopwords])
+        all_words.extend([w for w in words if w not in stopwords])
     
-    # Extract top 10 meaningful domain topics
     top_keywords = Counter(all_words).most_common(10)
-    kw_labels = [k[0] for k in top_keywords]
+    kw_labels = [k[0].capitalize() for k in top_keywords]
     kw_counts = [k[1] for k in top_keywords]
 
     rata_rata = round(total_berita / 9.0, 1) if total_berita > 0 else 0.0
 
+    # JSON Serializer
     chart_months_json = json.dumps(months_labels)
     chart_monthly_data_json = json.dumps(monthly_counts)
     chart_kat_labels_json = json.dumps(list(kategori_counts.keys()))
@@ -253,7 +244,6 @@ def generate_dashboard():
                         </thead>
                         <tbody class="divide-y divide-slate-100">
 """
-
     for idx, row in df.iterrows():
         tgl = str(row.get(col_tanggal, '-'))
         jdl = str(row.get(col_judul, '-'))
@@ -277,8 +267,8 @@ def generate_dashboard():
         <div id="view-tren" class="hidden space-y-6">
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <div class="mb-6">
-                    <h3 class="text-lg font-bold text-slate-900">Peringkat Sub-Tema & Kata Kunci Berita Hangat</h3>
-                    <p class="text-xs text-slate-400">Peringkat istilah dan fokus isu utama yang paling sering muncul dalam publikasi resmi UNESA</p>
+                    <h3 class="text-lg font-bold text-slate-900">Peringkat Kata Kunci & Topik Berita Hangat</h3>
+                    <p class="text-xs text-slate-400">Kata kunci terbanyak yang paling sering muncul pada judul berita resmi UNESA</p>
                 </div>
 
                 <div class="h-80">
@@ -289,6 +279,7 @@ def generate_dashboard():
 
     </div>
 
+    <!-- JS LOGIC & CHARTS -->
     <script>
         function switchTab(tabName) {{
             document.getElementById('view-ikhtisar').classList.add('hidden');
@@ -339,7 +330,7 @@ def generate_dashboard():
                 datasets: [{{
                     data: {chart_kat_data_json},
                     backgroundColor: [
-                        '#2e2a85', '#10b981', '#f59e0b', '#ec4899',
+                        '#4338ca', '#10b981', '#f59e0b', '#ec4899',
                         '#8b5cf6', '#06b6d4', '#64748b'
                     ],
                     borderWidth: 3,
@@ -392,7 +383,7 @@ def generate_dashboard():
         f.write(html_content)
         
     shutil.copy('dashboard_internal.html', 'index.html')
-    print("Dashboard internal berhasil diperbarui dengan kata kunci sub-tema yang bersih dan jelas!")
+    print("Dashboard internal berhasil diperbarui dengan grafik Tren Tema!")
 
 if __name__ == '__main__':
     generate_dashboard()
