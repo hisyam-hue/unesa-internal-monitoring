@@ -14,14 +14,15 @@ async def scrape_unesa_internal():
 
         articles_data = []
         
-        # Kita buat perulangan otomatis untuk mencakup banyak halaman arsip (misal sampai halaman 30 atau lebih sesuai kebutuhan arsip tahun 2026)
-        max_pages = 25 
+        # Sesuaikan batas maksimal halaman arsip yang ingin ditarik (misal 50 atau 60 halaman untuk mencakup tahun 2026)
+        max_pages = 60 
         
         for current_page in range(1, max_pages + 1):
             if current_page == 1:
                 url = "https://unesa.ac.id/arsip/unesa/"
             else:
-                url = f"https://unesa.ac.id/arsip/unesa/?page={current_page}"
+                # Menggunakan pola direktori /p/N/ yang sesuai dengan struktur situs UNESA
+                url = f"https://unesa.ac.id/arsip/unesa/p/{current_page}/"
 
             print(f"Mengakses: {url}")
             try:
@@ -37,8 +38,8 @@ async def scrape_unesa_internal():
 
             print(f"Ditemukan {len(cards)} elemen artikel di halaman {current_page}.")
             
-            # Jika halaman kosong (sudah habis arsipnya), hentikan perulangan
             if not cards:
+                print("Halaman arsip habis atau tidak merespons.")
                 break
 
             page_articles_count = 0
@@ -74,11 +75,6 @@ async def scrape_unesa_internal():
                     date_match = re.search(r'\d{1,2}\s+[A-Za-z]+\s+\d{4}', raw_text)
                     tanggal = date_match.group(0) if date_match else "Terbaru"
 
-                    # Filter hanya mengambil berita tahun 2026 atau terbaru
-                    if "2026" not in tanggal and tanggal != "Terbaru":
-                        # Jika arsip sudah melewati tahun 2026 (misal 2025), kita bisa lewati atau teruskan
-                        pass
-
                     kategori = "Umum"
                     if "Pikiran Pakar" in raw_text or "Kata Pakar" in raw_text:
                         kategori = "Kata Pakar"
@@ -100,7 +96,7 @@ async def scrape_unesa_internal():
                 except Exception as ex:
                     continue
             
-            # Jika dalam satu halaman tidak ada artikel valid yang terambil, akhiri perulangan
+            # Jika halaman tidak memuat artikel baru yang valid, akhiri perulangan
             if page_articles_count == 0 and current_page > 3:
                 break
 
