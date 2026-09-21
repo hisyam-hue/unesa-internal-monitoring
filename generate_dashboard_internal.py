@@ -36,7 +36,6 @@ def generate_dashboard():
     df = pd.read_csv(csv_file)
     df.fillna('', inplace=True)
     
-    # Pembersihan Kolom Views agar Angka Ribuan (seperti 2.753) Terbaca Sempurna
     if 'views' in df.columns:
         df['views'] = df['views'].astype(str).str.lower().str.replace('views', '', regex=False)
         df['views'] = df['views'].str.replace('.', '', regex=False).str.replace(',', '', regex=False).str.strip()
@@ -50,7 +49,6 @@ def generate_dashboard():
     col_judul = 'judul' if 'judul' in df.columns else df.columns[1]
     col_url = 'url' if 'url' in df.columns else ('link' if 'link' in df.columns else '#')
 
-    # Terapkan Auto-Classification 10 Tema
     df['tema_resmi'] = df.apply(lambda r: classify_tema(r[col_judul], r.get('kategori', '')), axis=1)
 
     tema_counts = df['tema_resmi'].value_counts().to_dict()
@@ -160,34 +158,6 @@ def generate_dashboard():
                 </div>
             </div>
 
-            <!-- TOP 5 BERITA PALING BANYAK DIBACA (DILETAKKAN DI HALAMAN UTAMA) -->
-            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                <h3 class="text-base font-bold text-slate-900 mb-4">🔥 Top 5 Berita Paling Banyak Dibaca (High Views Sejak Januari)</h3>
-                <div class="space-y-3">
-"""
-    top_views_df = df.sort_values(by='views', ascending=False).head(5)
-    for idx, row in top_views_df.iterrows():
-        link_berita = str(row.get(col_url, '#'))
-        html_content += f"""
-                    <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100/60 transition-colors">
-                        <div class="space-y-1 pr-4">
-                            <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px]">{row['tema_resmi']}</span>
-                            <h4 class="text-xs font-bold text-slate-800">{row[col_judul]}</h4>
-                            <p class="text-[10px] text-slate-400">Tanggal: {row.get(col_tanggal, '-')}</p>
-                        </div>
-                        <div class="text-right whitespace-nowrap flex items-center gap-3">
-                            <div>
-                                <span class="text-sm font-extrabold text-emerald-600">{row['views']:,}</span>
-                                <p class="text-[10px] text-slate-400">Total Views</p>
-                            </div>
-                            <a href="{link_berita}" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold">Buka ↗</a>
-                        </div>
-                    </div>"""
-
-    html_content += f"""
-                </div>
-            </div>
-
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                     <h3 class="text-base font-bold text-slate-900">Volume Publikasi Berita Harian & Bulanan (2026)</h3>
@@ -293,9 +263,37 @@ def generate_dashboard():
             </div>
         </div>
 
-        <!-- VIEW 3: TREN TEMA & VIEWS ANALYTICS -->
+        <!-- VIEW 3: TREN TEMA & VIEWS ANALYTICS (TOP 5 DIKEMBALIKAN KESINI) -->
         <div id="view-tren" class="hidden space-y-6">
             
+            <!-- TOP 5 BERITA PALING BANYAK DIBACA -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <h3 class="text-base font-bold text-slate-900 mb-4">🔥 Top 5 Berita Paling Banyak Dibaca (High Views Sejak Januari)</h3>
+                <div class="space-y-3">
+"""
+    top_views_df = df.sort_values(by='views', ascending=False).head(5)
+    for idx, row in top_views_df.iterrows():
+        link_berita = str(row.get(col_url, '#'))
+        html_content += f"""
+                    <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100/60 transition-colors">
+                        <div class="space-y-1 pr-4">
+                            <span class="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px]">{row['tema_resmi']}</span>
+                            <h4 class="text-xs font-bold text-slate-800">{row[col_judul]}</h4>
+                            <p class="text-[10px] text-slate-400">Tanggal: {row.get(col_tanggal, '-')}</p>
+                        </div>
+                        <div class="text-right whitespace-nowrap flex items-center gap-3">
+                            <div>
+                                <span class="text-sm font-extrabold text-emerald-600">{row['views']:,}</span>
+                                <p class="text-[10px] text-slate-400">Total Views</p>
+                            </div>
+                            <a href="{link_berita}" target="_blank" class="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold">Buka ↗</a>
+                        </div>
+                    </div>"""
+
+    html_content += f"""
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Chart Jumlah Berita per Tema -->
                 <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -431,7 +429,7 @@ def generate_dashboard():
         f.write(html_content)
         
     shutil.copy('dashboard_internal.html', 'index.html')
-    print("Dashboard internal berhasil diperbarui dengan pembersihan views & Top 5 di halaman utama!")
+    print("Dashboard internal berhasil dikembalikan seperti semula!")
 
 if __name__ == '__main__':
     generate_dashboard()
