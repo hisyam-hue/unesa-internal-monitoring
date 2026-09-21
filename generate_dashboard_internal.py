@@ -263,10 +263,30 @@ def generate_dashboard():
             </div>
         </div>
 
-        <!-- VIEW 3: TREN TEMA & VIEWS ANALYTICS (TOP 5 DIKEMBALIKAN KESINI) -->
+        <!-- VIEW 3: TREN TEMA & VIEWS ANALYTICS (GRAFIK DI ATAS, TOP 5 DI BAWAH) -->
         <div id="view-tren" class="hidden space-y-6">
             
-            <!-- TOP 5 BERITA PALING BANYAK DIBACA -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Chart Jumlah Berita per Tema -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                    <h3 class="text-base font-bold text-slate-900">Distribusi Jumlah Artikel per 10 Tema</h3>
+                    <p class="text-xs text-slate-400 mb-4">Perbandingan volume publikasi antar tema resmi UNESA</p>
+                    <div class="h-80">
+                        <canvas id="chartTemaCount"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart Rata-rata Views per Tema -->
+                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                    <h3 class="text-base font-bold text-slate-900">Rata-rata Views (Keterbacaan) per Tema</h3>
+                    <p class="text-xs text-slate-400 mb-4">Mengukur minat pembaca berdasarkan kategori tema</p>
+                    <div class="h-80">
+                        <canvas id="chartTemaViews"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TOP 5 BERITA PALING BANYAK DIBACA (DI BAWAH GRAFIK) -->
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <h3 class="text-base font-bold text-slate-900 mb-4">🔥 Top 5 Berita Paling Banyak Dibaca (High Views Sejak Januari)</h3>
                 <div class="space-y-3">
@@ -291,26 +311,6 @@ def generate_dashboard():
                     </div>"""
 
     html_content += f"""
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Chart Jumlah Berita per Tema -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <h3 class="text-base font-bold text-slate-900">Distribusi Jumlah Artikel per 10 Tema</h3>
-                    <p class="text-xs text-slate-400 mb-4">Perbandingan volume publikasi antar tema resmi UNESA</p>
-                    <div class="h-80">
-                        <canvas id="chartTemaCount"></canvas>
-                    </div>
-                </div>
-
-                <!-- Chart Rata-rata Views per Tema -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                    <h3 class="text-base font-bold text-slate-900">Rata-rata Views (Keterbacaan) per Tema</h3>
-                    <p class="text-xs text-slate-400 mb-4">Mengukur minat pembaca berdasarkan kategori tema</p>
-                    <div class="h-80">
-                        <canvas id="chartTemaViews"></canvas>
-                    </div>
                 </div>
             </div>
 
@@ -429,7 +429,7 @@ def generate_dashboard():
         f.write(html_content)
         
     shutil.copy('dashboard_internal.html', 'index.html')
-    print("Dashboard internal berhasil dikembalikan seperti semula!")
+    print("Dashboard internal berhasil disusun ulang dengan grafik di atas dan Top 5 di bawah!")
 
 if __name__ == '__main__':
     generate_dashboard()
