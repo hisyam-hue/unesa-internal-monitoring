@@ -23,11 +23,14 @@ async def scrape_unesa_internal():
             page_detail = await context.new_page()
             await page_detail.goto(url, timeout=30000, wait_until="networkidle")
             
-            # Mengambil seluruh kode sumber HTML halaman detail
-            content_html = await page_detail.content()
+            # Berikan jeda waktu 2 detik agar skrip dinamis/counter views selesai merender angka
+            await page_detail.wait_for_timeout(2000)
+            
+            # Ambil seluruh teks bersih dari halaman
+            detail_text = await page_detail.inner_text("body")
             
             # Mencari pola angka views yang mengikuti format situs UNESA (contoh: "2.753 views")[cite: 9]
-            views_match = re.search(r'([\d\.]+)\s*views', content_html, re.IGNORECASE)
+            views_match = re.search(r'([\d\.]+)\s*views', detail_text, re.IGNORECASE)
             if views_match:
                 raw_v = views_match.group(1).replace('.', '').replace(',', '')
                 if raw_v.isdigit():
@@ -35,7 +38,6 @@ async def scrape_unesa_internal():
                     print(f"Berhasil mendeteksi views untuk {url}: {val}")
                     return val
             
-            print(f"Views tidak ditemukan untuk URL: {url}")
             return 0
         except Exception as e:
             print(f"Gagal akses detail {url}: {e}")
