@@ -165,7 +165,6 @@
             <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <h3 class="text-lg font-bold text-slate-900 mb-2">Analisis Tren Tema & Views Berita</h3>
                 <p class="text-xs text-slate-400 mb-4">Grafik mendalam mengenai keterbacaan tiap kategori topik berita.</p>
-                <!-- Konten tambahan untuk view tren bisa diletakkan di sini -->
                 <div class="p-12 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                     Modul Grafik Tren Tema & Views Aktif
                 </div>
@@ -174,7 +173,7 @@
 
     </div>
 
-    <!-- JAVASCRIPT UNTUK FITUR SWITCH TAB -->
+    <!-- JAVASCRIPT: TAB SWITCH & CHART.JS SAFETY -->
     <script>
         function switchTab(tabName) {
             // Sembunyikan semua view
@@ -191,6 +190,41 @@
             document.getElementById('view-' + tabName).classList.remove('hidden');
             document.getElementById('tab-' + tabName).classList.add('active');
         }
+
+        // Inisialisasi dasar Chart.js agar tidak memicu error script
+        window.addEventListener('DOMContentLoaded', () => {
+            const ctxBar = document.getElementById('barChart');
+            if (ctxBar) {
+                new Chart(ctxBar, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep'],
+                        datasets: [{
+                            label: 'Jumlah Berita',
+                            data: [45, 60, 75, 80, 95, 70, 65, 85, 59],
+                            backgroundColor: '#2e2a85',
+                            borderRadius: 6
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+
+            const ctxDonut = document.getElementById('donutChart');
+            if (ctxDonut) {
+                new Chart(ctxDonut, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Umum', 'Akademik', 'Kemahasiswaan'],
+                        datasets: [{
+                            data: [314, 180, 140],
+                            backgroundColor: ['#2e2a85', '#ffcc00', '#10b981']
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+        });
     </script>
 </body>
 </html>
