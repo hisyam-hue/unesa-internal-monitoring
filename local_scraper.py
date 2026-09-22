@@ -14,14 +14,13 @@ async def scrape_unesa_internal():
 
         articles_data = []
         
-        # Sesuaikan batas maksimal halaman arsip yang ingin ditarik (misal 50 atau 60 halaman untuk mencakup tahun 2026)
-        max_pages = 60 
+        # Tingkatkan max_pages menjadi 75 untuk mencakup P61-P64 dan halaman Januari lainnya
+        max_pages = 75 
         
         for current_page in range(1, max_pages + 1):
             if current_page == 1:
                 url = "https://unesa.ac.id/arsip/unesa/"
             else:
-                # Menggunakan pola direktori /p/N/ yang sesuai dengan struktur situs UNESA
                 url = f"https://unesa.ac.id/arsip/unesa/p/{current_page}/"
 
             print(f"Mengakses: {url}")
@@ -46,7 +45,6 @@ async def scrape_unesa_internal():
 
             for card in cards:
                 try:
-                    # Selektor Judul yang akurat pada card arsip
                     title_elem = await card.query_selector("h2 a, h3 a, .title a, a.title, h2, h3")
                     title = await title_elem.inner_text() if title_elem else ""
                     title = title.strip()
@@ -63,7 +61,7 @@ async def scrape_unesa_internal():
 
                     raw_text = await card.inner_text()
 
-                    # Ekstraksi Views riil dari card arsip
+                    # Ekstraksi Views riil
                     views_match = re.search(r'([\d\.]+)\s*(?:views|dilihat|pembaca)', raw_text, re.IGNORECASE)
                     if views_match:
                         raw_v = views_match.group(1).replace('.', '').replace(',', '')
@@ -75,6 +73,11 @@ async def scrape_unesa_internal():
                     date_match = re.search(r'\d{1,2}\s+[A-Za-z]+\s+\d{4}', raw_text)
                     tanggal = date_match.group(0) if date_match else "Terbaru"
 
+                    # Filter ketat: Hanya ambil berita yang bertahun 2026
+                    # Jika artikel sudah masuk tahun 2025 atau sebelumnya, abaikan
+                    if "2025" in tanggal or "2024" in tanggal:
+                        continue
+
                     kategori = "Umum"
                     if "Pikiran Pakar" in raw_text or "Kata Pakar" in raw_text:
                         kategori = "Kata Pakar"
@@ -83,7 +86,6 @@ async def scrape_unesa_internal():
                     elif "Prestasi" in raw_text:
                         kategori = "Prestasi"
 
-                    # Validasi judul agar bersih dari teks generik
                     if title and len(title) > 5 and title not in ["Berita Unesa", "Prestasi Institusi"]:
                         articles_data.append({
                             "tanggal": tanggal,
@@ -96,13 +98,12 @@ async def scrape_unesa_internal():
                 except Exception as ex:
                     continue
             
-            # Jika halaman tidak memuat artikel baru yang valid, akhiri perulangan
-            if page_articles_count == 0 and current_page > 3:
+            # Jika halaman sudah lewat dari batas awal dan tidak ada artikel 2026 yang masuk
+            if page_articles_count == 0 and current_page > 65:
                 break
 
         await browser.close()
 
-        # Simpan ke CSV rekap internal
         if articles_data:
             df = pd.DataFrame(articles_data)
             df = df.drop_duplicates(subset=["judul"])
